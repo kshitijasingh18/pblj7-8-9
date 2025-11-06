@@ -1,0 +1,307 @@
+pm.xml:
+<dependencies>
+    <!-- Spring Core & Context -->
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context</artifactId>
+        <version>5.3.30</version>
+    </dependency>
+
+    <!-- Spring ORM (for part c integration) -->
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-orm</artifactId>
+        <version>5.3.30</version>
+    </dependency>
+
+    <!-- Hibernate Core -->
+    <dependency>
+        <groupId>org.hibernate</groupId>
+        <artifactId>hibernate-core</artifactId>
+        <version>5.6.15.Final</version>
+    </dependency>
+
+    <!-- MySQL Connector -->
+    <dependency>
+        <groupId>mysql</groupId>
+        <artifactId>mysql-connector-java</artifactId>
+        <version>8.0.33</version>
+    </dependency>
+
+    <!-- JPA API -->
+    <dependency>
+        <groupId>javax.persistence</groupId>
+        <artifactId>javax.persistence-api</artifactId>
+        <version>2.2</version>
+    </dependency>
+
+    <!-- Spring TX -->
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-tx</artifactId>
+        <version>5.3.30</version>
+    </dependency>
+</dependencies>
+course.java :
+package com.example;
+
+public class Course {
+    private String courseName;
+
+    public Course(String courseName) {
+        this.courseName = courseName;
+    }
+
+    public void showCourse() {
+        System.out.println("Enrolled in course: " + courseName);
+    }
+}
+Student.java:
+package com.example;
+
+public class Student {
+    private Course course;
+
+    public Student(Course course) {
+        this.course = course;
+    }
+
+    public void display() {
+        System.out.println("Student details:");
+        course.showCourse();
+    }
+}
+AppConfig.java :
+package com.example;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class AppConfig {
+
+    @Bean
+    public Course course() {
+        return new Course("Spring Framework with Hibernate");
+    }
+
+    @Bean
+    public Student student() {
+        return new Student(course());
+    }
+}
+Mainapp.java :
+package com.example;
+
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class MainApp {
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+        Student student = context.getBean(Student.class);
+        student.display();
+        context.close();
+    }
+}
+StudentEntity.java :
+package com.example;
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "student")
+public class StudentEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "city")
+    private String city;
+
+    public StudentEntity() {}
+    public StudentEntity(String name, String city) {
+        this.name = name;
+        this.city = city;
+    }
+
+    // Getters and setters
+    public int getId() { return id; }
+    public String getName() { return name; }
+    public String getCity() { return city; }
+}
+hibernate.cfg.xml
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE hibernate-configuration PUBLIC
+    "-//Hibernate/Hibernate Configuration DTD//EN"
+    "http://hibernate.sourceforge.net/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+ <session-factory>
+    <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+    <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/studentdb</property>
+    <property name="hibernate.connection.username">root</property>
+    <property name="hibernate.connection.password">yourpassword</property>
+    <property name="hibernate.dialect">org.hibernate.dialect.MySQL8Dialect</property>
+    <property name="hibernate.hbm2ddl.auto">update</property>
+    <property name="show_sql">true</property>
+    <mapping class="com.example.StudentEntity"/>
+ </session-factory>
+</hibernate-configuration>
+
+HibernateCRUD.java:
+package com.example;
+
+import org.hibernate.*;
+import org.hibernate.cfg.Configuration;
+
+public class HibernateCRUD {
+    public static void main(String[] args) {
+        SessionFactory factory = new Configuration().configure().buildSessionFactory();
+        Session session = factory.openSession();
+        Transaction tx = session.beginTransaction();
+
+        // CREATE
+        StudentEntity student = new StudentEntity("Raj", "Delhi");
+        session.save(student);
+
+        // READ
+        StudentEntity fetched = session.get(StudentEntity.class, student.getId());
+        System.out.println("Fetched: " + fetched.getName() + " from " + fetched.getCity());
+
+        // UPDATE
+        fetched = session.get(StudentEntity.class, student.getId());
+        fetched.setCity("Mumbai");
+        session.update(fetched);
+
+        // DELETE
+        session.delete(fetched);
+
+        tx.commit();
+        session.close();
+        factory.close();
+    }
+}
+
+Account.java
+package com.example;
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "account")
+public class Account {
+    @Id
+    private int id;
+    private String name;
+    private double balance;
+
+    // Getters & setters
+}
+
+AccountDao.java
+package com.example;
+
+import org.hibernate.SessionFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class AccountDao {
+    @Autowired
+    private SessionFactory sessionFactory;
+
+    public void update(Account acc) {
+        sessionFactory.getCurrentSession().update(acc);
+    }
+
+    public Account get(int id) {
+        return sessionFactory.getCurrentSession().get(Account.class, id);
+    }
+}
+
+BankService.java
+package com.example;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class BankService {
+    @Autowired
+    private AccountDao dao;
+
+    @Transactional
+    public void transferMoney(int fromId, int toId, double amount) {
+        Account from = dao.get(fromId);
+        Account to = dao.get(toId);
+
+        from.setBalance(from.getBalance() - amount);
+        to.setBalance(to.getBalance() + amount);
+
+        dao.update(from);
+        dao.update(to);
+
+        System.out.println("Transfer successful!");
+    }
+}
+
+SpringHibernateConfig.java
+package com.example;
+
+import java.util.Properties;
+import javax.sql.DataSource;
+import org.springframework.context.annotation.*;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.orm.hibernate5.*;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+
+@Configuration
+@EnableTransactionManagement
+@ComponentScan("com.example")
+public class SpringHibernateConfig {
+
+    @Bean
+    public DataSource dataSource() {
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        ds.setUrl("jdbc:mysql://localhost:3306/bankdb");
+        ds.setUsername("root");
+        ds.setPassword("yourpassword");
+        return ds;
+    }
+
+    @Bean
+    public LocalSessionFactoryBean sessionFactory() {
+        LocalSessionFactoryBean factory = new LocalSessionFactoryBean();
+        factory.setDataSource(dataSource());
+        factory.setPackagesToScan("com.example");
+        Properties props = new Properties();
+        props.put("hibernate.dialect", "org.hibernate.dialect.MySQL8Dialect");
+        props.put("hibernate.hbm2ddl.auto", "update");
+        factory.setHibernateProperties(props);
+        return factory;
+    }
+
+    @Bean
+    public HibernateTransactionManager transactionManager(SessionFactory sf) {
+        return new HibernateTransactionManager(sf);
+    }
+}
+
+BankApp.java
+package com.example;
+
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class BankApp {
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(SpringHibernateConfig.class);
+        BankService service = ctx.getBean(BankService.class);
+        service.transferMoney(1, 2, 500.0);
+        ctx.close();
+    }
+}
